@@ -1,4 +1,4 @@
-name: Approve and Unblock PR
+name: Combined Approve and Unblock PR
 
 on:
   issue_comment:
