@@ -30,16 +30,25 @@ jobs:
           else
             echo "approved=false" >> $GITHUB_ENV
           fi
-
+      
       - name: Unblock PR if Approved
         if: ${{ env.approved == 'true' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Unblocking pull request..."
-          PR_NUMBER=$(echo "${{ github.event.issue.number || github.event.pull_request.number }}")
-          curl -X DELETE \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/labels/block
+            echo "Unblocking pull request..."
+            if [ "${{ github.event.issue.number }}" != "" ]; then
+              PR_NUMBER=${{ github.event.issue.number }}
+            elif [ "${{ github.event.pull_request.number }}" != "" ]; then
+              PR_NUMBER=${{ github.event.pull_request.number }}
+            else
+              echo "Error: Unable to determine pull request number."
+              exit 1
+            fi
+        
+            curl -X DELETE \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/labels/block
+      
 
