@@ -1,29 +1,54 @@
-name: Approve and Unblock PR
+name: Combined Approve and Unblock PR
 
 on:
   issue_comment:
-    types: [created]
+    types: [created] # Triggered when a comment is added
+  pull_request_review:
+    types: [submitted] # Triggered when a review is submitted
 
 jobs:
   unblock_pr:
     runs-on: ubuntu-latest
-    if: ${{ github.event.issue.pull_request }} # Only run for pull request comments
-    steps:
-      - name: Check for approval keyword
-        run: |
-          echo "Comment: ${{ github.event.comment.body }}"
-          if [[ "${{ github.event.comment.body }}" =~ "looks good to me!" ]]; then
-            echo "Approval detected."
-          else
-            echo "No approval keyword found."
-            exit 1
 
-      - name: Remove "block" label
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Determine Trigger Source
+        id: check_trigger
         run: |
-          PR_NUMBER=$(echo "${{ github.event.issue.number }}")
-          curl -X DELETE \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/labels/block
+          echo "Checking trigger source..."
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            if [[ "${{ github.event.comment.body }}" =~ "looks good to me!" ]]; then
+              echo "approved=true" >> $GITHUB_ENV
+            else
+              echo "approved=false" >> $GITHUB_ENV
+            fi
+          elif [[ "${{ github.event_name }}" == "pull_request_review" ]]; then
+            if [[ "${{ github.event.review.state }}" == "approved" ]]; then
+              echo "approved=true" >> $GITHUB_ENV
+            else
+              echo "approved=false" >> $GITHUB_ENV
+            fi
+          else
+            echo "approved=false" >> $GITHUB_ENV
+          fi
+      
+      - name: Unblock PR if Approved
+        if: ${{ env.approved == 'true' }}
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+            echo "Unblocking pull request..."
+            if [ "${{ github.event.issue.number }}" != "" ]; then
+              PR_NUMBER=${{ github.event.issue.number }}
+            elif [ "${{ github.event.pull_request.number }}" != "" ]; then
+              PR_NUMBER=${{ github.event.pull_request.number }}
+            else
+              echo "Error: Unable to determine pull request number."
+              exit 1
+            fi
+        
+            curl -X DELETE \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/labels/block
+      
+
